@@ -1,0 +1,46 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Terraform ---
+terraform/**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+terraform/terraform.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.tfplan
+# Only the root lock file is meaningful (modules aren't independently
+# initialized); ignore the ones the terraform_validate hook leaves behind
+# in module directories as a side effect of validating them individually.
+terraform/modules/**/.terraform.lock.hcl
+# Keep the root dependency lock file tracked for reproducibility:
+!terraform/.terraform.lock.hcl
+
+# --- Secrets / env ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# --- IDE ---
+.vscode/
+.idea/
+.DS_Store
+.claude/
