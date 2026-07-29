@@ -46,3 +46,13 @@ make lint         # ruff + mypy + terraform validate
 make test         # pytest
 make down         # stop the stack
 ```
+
+## Phase 2: Ingestion (dlt)
+
+A standalone dlt pipeline (`src/lakehouse/ingestion/`) ingests daily historical weather data from the [Open-Meteo archive API](https://open-meteo.com/) for a few hardcoded locations into the S3 landing zone (`s3://<bucket>/landing/open_meteo/`), one dlt resource per location with its own incremental date cursor.
+
+```bash
+make ingest        # runs the pipeline against the real S3 bucket in .env
+```
+
+Reruns only fetch dates since the last load — a same-day rerun does no work and lands no new files.

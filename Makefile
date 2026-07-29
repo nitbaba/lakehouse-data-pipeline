@@ -48,6 +48,10 @@ precommit: ## Run all pre-commit hooks against all files
 test: ## Run pytest
 	$(VENV)/bin/pytest
 
+.PHONY: ingest
+ingest: ## Run the dlt ingestion pipeline against S3 (needs a filled-in .env)
+	set -a && . ./.env && set +a && $(PY) -m lakehouse.ingestion.pipeline
+
 .PHONY: tf-init
 tf-init: ## terraform init
 	terraform -chdir=terraform init
