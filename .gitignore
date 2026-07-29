@@ -31,6 +31,11 @@ terraform/modules/**/.terraform.lock.hcl
 # Keep the root dependency lock file tracked for reproducibility:
 !terraform/.terraform.lock.hcl
 
+# --- dlt ---
+.dlt/
+*.duckdb
+*.duckdb.wal
+
 # --- Secrets / env ---
 .env
 .env.*

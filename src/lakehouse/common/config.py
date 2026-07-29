@@ -7,6 +7,7 @@ class Settings:
     aws_region: str
     bucket_name: str
     warehouse_path: str
+    landing_path: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -16,4 +17,5 @@ class Settings:
             aws_region=aws_region,
             bucket_name=bucket_name,
             warehouse_path=f"s3://{bucket_name}/warehouse/",
+            landing_path=f"s3://{bucket_name}/landing/",
         )
