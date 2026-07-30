@@ -1,0 +1,64 @@
+name: Terraform CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  fmt-validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.0"
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive .
+
+      # No backend block exists (local state only) so this only downloads
+      # the hashicorp/aws provider plugin -- no AWS credentials needed.
+      - name: terraform init
+        run: terraform init
+
+      # Only checks syntax/types against the provider's resource schema
+      # (already fetched by init) -- makes no AWS API calls either.
+      - name: terraform validate
+        run: terraform validate
+
+  plan:
+    needs: fmt-validate
+    runs-on: ubuntu-latest
+    # Real AWS credentials only ever get assumed on push to master or a
+    # manual dispatch -- never on pull_request, so this job (and the OIDC
+    # role it assumes) is never reachable from an untrusted fork PR.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    defaults:
+      run:
+        working-directory: terraform
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.0"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.LAKEHOUSE_TF_CI_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: terraform init
+        run: terraform init
+
+      - name: terraform plan
+        run: terraform plan -input=false

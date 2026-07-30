@@ -19,3 +19,15 @@ module "lakehouse_iam" {
   project_name          = var.project_name
   environment           = var.environment
 }
+
+module "github_actions_ci" {
+  source = "./modules/github_actions_role"
+
+  project_name        = var.project_name
+  environment         = var.environment
+  github_repo         = var.github_repo
+  github_branch       = var.github_branch
+  bucket_arn          = module.lakehouse_bucket.bucket_arn
+  pipeline_role_arn   = module.lakehouse_iam.role_arn
+  pipeline_policy_arn = module.lakehouse_iam.policy_arn
+}

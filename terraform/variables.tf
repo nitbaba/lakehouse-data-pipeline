@@ -21,3 +21,15 @@ variable "noncurrent_version_expiration_days" {
   type        = number
   default     = 30
 }
+
+variable "github_repo" {
+  description = "GitHub repo (\"owner/name\") allowed to assume the CI plan role"
+  type        = string
+  default     = "nitbaba/lakehouse-data-pipeline"
+}
+
+variable "github_branch" {
+  description = "Branch the CI plan role's trust policy is scoped to"
+  type        = string
+  default     = "master"
+}
