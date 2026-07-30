@@ -38,7 +38,7 @@ jobs:
       # actionable here -- the scan is for visibility via the Security tab,
       # not a merge gate.
       - name: Scan ${{ matrix.name }} image with Trivy
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: lakehouse-${{ matrix.name }}:ci
           format: sarif
