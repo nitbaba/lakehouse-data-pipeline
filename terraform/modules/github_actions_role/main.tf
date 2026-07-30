@@ -19,6 +19,16 @@ data "aws_iam_openid_connect_provider" "github_actions" {
 # separate condition is needed for both triggers. Pull-request events are
 # never in scope, and fork PRs never carry a token minted with this repo's
 # identity at all, so this can't be reached from untrusted fork PRs.
+#
+# The owner/repo segments are matched with a "@<numeric-id>" wildcard suffix
+# rather than plain names: confirmed via CloudTrail that this account's
+# actual sub claims are "repo:nitbaba@66657625/lakehouse-data-pipeline@1316444705:ref:...",
+# not the plain "repo:owner/repo:ref:..." the basic OIDC docs describe.
+# GitHub appends the owner/repo's immutable database ID this way once an
+# account or repo has been renamed, to stop someone else reusing the old
+# name to spoof a stale trust policy. Wildcarding the ID (rather than
+# hardcoding the current one) keeps this working if that ID context ever
+# changes, while still requiring an exact owner/repo name match.
 data "aws_iam_policy_document" "trust" {
   statement {
     effect  = "Allow"
@@ -38,7 +48,7 @@ data "aws_iam_policy_document" "trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/${var.github_branch}"]
+      values   = ["repo:${split("/", var.github_repo)[0]}@*/${split("/", var.github_repo)[1]}@*:ref:refs/heads/${var.github_branch}"]
     }
   }
 }
