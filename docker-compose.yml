@@ -114,7 +114,11 @@ services:
       --firstname ${AIRFLOW_ADMIN_FIRSTNAME}
       --lastname ${AIRFLOW_ADMIN_LASTNAME}
       --role Admin
-      --email ${AIRFLOW_ADMIN_EMAIL}"
+      --email ${AIRFLOW_ADMIN_EMAIL} &&
+      (airflow connections add 'aws_lakehouse'
+      --conn-type 'aws'
+      --conn-extra '{\"profile_name\": \"${AWS_PROFILE}\", \"region_name\": \"${AWS_REGION}\"}'
+      || true)"
 
   airflow-webserver:
     <<: *airflow-common
@@ -133,6 +137,27 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     command: scheduler
+    # Needed to read the docker socket below (mounted root-owned) so the
+    # DockerExecOperator can reach the spark-iceberg container -- the
+    # default non-root `airflow` user can't. Same class of fix already
+    # applied to iceberg-rest in Phase 3 for an analogous root-owned mount.
+    # Scoped to the scheduler only (the service that actually executes
+    # LocalExecutor tasks), not the webserver.
+    user: root
+    environment:
+      <<: *airflow-common-env
+      HOME: /root
+      AWS_REGION: ${AWS_REGION}
+      AWS_PROFILE: ${AWS_PROFILE}
+      LAKEHOUSE_BUCKET_NAME: ${LAKEHOUSE_BUCKET_NAME}
+      PYTHONPATH: /opt/airflow/src
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+      - airflow_plugins:/opt/airflow/plugins
+      - ./src:/opt/airflow/src:ro
+      - ${HOME}/.aws:/root/.aws:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       airflow-init:
         condition: service_completed_successfully

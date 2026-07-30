@@ -82,3 +82,19 @@ Great Expectations validates data in-line with the real pipeline (`src/lakehouse
 ```bash
 make test    # includes tests/test_processing_*.py and tests/test_quality_expectations.py
 ```
+
+## Phase 5: Orchestration (Airflow)
+
+Two DAGs, linked by an Airflow Dataset rather than a fixed time offset:
+
+- **`ingestion_dag`** (`@daily`) — runs `lakehouse.ingestion.pipeline.run()` in-process inside Airflow's own container (dlt is installed there now), reading the `aws_lakehouse` Airflow Connection (`profile_name`/`region_name`, no static keys — same assumable-role pattern as everywhere else in this project) instead of a bare env var. On success it marks the `lakehouse://landing/open-meteo` dataset updated.
+- **`processing_dag`** (triggered by that dataset, not a cron schedule) — three sequential tasks (`bronze >> silver >> gold`) using a custom `DockerExecOperator` (`src/lakehouse/orchestration/docker_exec.py` + `dags/operators/docker_exec_operator.py`) that execs the existing `spark-submit .../bronze.py` etc. commands inside the already-running `spark-iceberg` container — the same commands `make spark-bronze` etc. already run manually.
+
+The `airflow-scheduler` container mounts `/var/run/docker.sock` (and runs as root, since Airflow's default non-root user can't read that root-owned socket) to make the `DockerExecOperator` possible — accepted tradeoff: this gives the scheduler host-root-equivalent access via the Docker daemon. Retries and an SLA are set per-DAG: `ingestion_dag` gets a real SLA (`sla_miss_callback` logs a warning) since it's schedule-driven; `processing_dag`'s dataset-triggered runs aren't SLA-checked by Airflow at all (2.10.5's documented behavior), so it relies on `retries` + the operator's `AirflowException` on failure instead.
+
+```bash
+make up                                    # brings up the whole stack including Airflow
+# in the Airflow UI (localhost:8081) or via CLI:
+airflow dags unpause ingestion_dag processing_dag
+airflow dags trigger ingestion_dag         # manual run; @daily handles the rest
+```
