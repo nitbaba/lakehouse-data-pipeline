@@ -1,1 +1,3 @@
-# Phase 2+ will add dlt, provider packages, and Great Expectations here.
+apache-airflow-providers-amazon==9.2.0
+dlt[filesystem]>=1.28,<2.0
+docker>=7.1,<8.0

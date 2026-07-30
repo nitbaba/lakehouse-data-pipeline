@@ -30,6 +30,10 @@ dev = [
     # import (see great-expectations/great_expectations#11090). Unneeded
     # anyway since pyspark is already present wherever this runs.
     "great_expectations>=1.19",
+    # For testing lakehouse.orchestration.docker_exec. No botocore dependency
+    # at all, so unlike boto3 it doesn't conflict with dlt's pinned
+    # aiobotocore/botocore range on the host.
+    "docker>=7.1,<8.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -67,6 +71,15 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "great_expectations.*"
 implicit_reexport = true
+
+# The docker SDK ships no py.typed marker, but mypy still finds and analyzes
+# its real (untyped) source rather than treating it as missing — so
+# ignore_missing_imports (for imports that can't be found at all) doesn't
+# apply; follow_imports = "skip" tells mypy not to analyze that source and
+# treat it as Any instead.
+[[tool.mypy.overrides]]
+module = "docker.*"
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
