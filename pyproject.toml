@@ -26,6 +26,10 @@ dev = [
     # a host install conflicts with dlt's pinned aiobotocore/botocore range,
     # so mypy gets an ignore_missing_imports override for it instead below.)
     "pyspark==3.5.5",
+    # NOT the [spark] extra: it pulls a pinned typing-extensions that breaks
+    # import (see great-expectations/great_expectations#11090). Unneeded
+    # anyway since pyspark is already present wherever this runs.
+    "great_expectations>=1.19",
 ]
 
 [tool.setuptools.packages.find]
@@ -55,6 +59,14 @@ files = ["src", "tests"]
 [[tool.mypy.overrides]]
 module = "boto3.*"
 ignore_missing_imports = true
+
+# great_expectations ships types but doesn't explicitly re-export its
+# expectation classes (e.g. gx.expectations.ExpectColumnValuesToNotBeNull),
+# which --no-implicit-reexport (part of strict = true) flags as attr-defined
+# errors. Not a missing-stubs issue, so ignore_missing_imports wouldn't help.
+[[tool.mypy.overrides]]
+module = "great_expectations.*"
+implicit_reexport = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

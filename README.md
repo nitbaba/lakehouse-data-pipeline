@@ -72,3 +72,13 @@ make spark-maintenance   # compaction + snapshot expiration
 ```
 
 Spark's Hadoop S3A connector (needed for the raw Bronze read — a different code path from Iceberg's own S3FileIO used everywhere else) can't resolve this project's assumable-role AWS profile on its own; job code assumes the role itself via boto3 and hands Spark temporary credentials (see `src/lakehouse/processing/spark_session.py`).
+
+## Phase 4: Data Quality & Testing
+
+Great Expectations validates data in-line with the real pipeline (`src/lakehouse/quality/expectations.py`) — `validate_landing()` runs on the raw Bronze read (structural checks, known locations, plausible temperature/precipitation ranges), `validate_silver()` runs on the deduplicated Silver data (adds `(date, location)` uniqueness and a `temperature_max >= temperature_min` cross-column check). Either raises on failure, same as this pipeline's existing "fail loud" pattern elsewhere.
+
+`src/lakehouse/processing/{silver,gold}.py` expose their transformation logic as pure, catalog-free functions (`dedupe_bronze()`, `compute_monthly_summary()`), tested offline against local PySpark fixtures (Java 17 + a `local[1]` SparkSession, no Docker/AWS needed):
+
+```bash
+make test    # includes tests/test_processing_*.py and tests/test_quality_expectations.py
+```

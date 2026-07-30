@@ -4,6 +4,7 @@ from pyspark.sql.types import DoubleType, StringType, StructField, StructType
 
 from lakehouse.common.config import Settings
 from lakehouse.processing.spark_session import CATALOG, build_spark_session
+from lakehouse.quality.expectations import validate_landing
 
 # Matches the row shape dlt's open_meteo pipeline lands in S3 (see
 # src/lakehouse/ingestion/open_meteo.py) — explicit schema, not inference,
@@ -42,6 +43,7 @@ def run() -> None:
     spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {CATALOG}.bronze")
 
     df = read_raw_weather(spark, settings.landing_path_s3a)
+    validate_landing(df)
     # Landing is append-only across dlt runs, so a naive append here would
     # duplicate history on every rerun. Data volume is tiny, so full
     # overwrite is the simplest correctly-idempotent approach — this does
