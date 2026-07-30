@@ -56,3 +56,19 @@ make ingest        # runs the pipeline against the real S3 bucket in .env
 ```
 
 Reruns only fetch dates since the last load — a same-day rerun does no work and lands no new files.
+
+## Phase 3: Storage & Processing (Iceberg + PySpark)
+
+A Bronze -> Silver -> Gold pipeline (`src/lakehouse/processing/`) runs inside the `spark-iceberg` container against the real Iceberg REST catalog:
+
+- **Bronze** (`rest.bronze.weather_daily_raw`): raw landing JSON read via Spark's Hadoop S3A connector, full overwrite each run (landing is append-only across dlt runs, so this is the simplest correctly-idempotent approach).
+- **Silver** (`rest.silver.weather_daily`): deduplicated, typed, `MERGE INTO`-based on `(date, location)`.
+- **Gold** (`rest.gold.monthly_location_climate_summary`): monthly per-location climate aggregates, full recompute.
+- **Maintenance**: Iceberg compaction (`rewrite_data_files`) and snapshot expiration (`expire_snapshots`, 7-day / last-5 retention) on all three tables.
+
+```bash
+make spark-medallion     # bronze -> silver -> gold
+make spark-maintenance   # compaction + snapshot expiration
+```
+
+Spark's Hadoop S3A connector (needed for the raw Bronze read — a different code path from Iceberg's own S3FileIO used everywhere else) can't resolve this project's assumable-role AWS profile on its own; job code assumes the role itself via boto3 and hands Spark temporary credentials (see `src/lakehouse/processing/spark_session.py`).

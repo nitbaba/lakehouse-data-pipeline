@@ -13,6 +13,7 @@ def test_from_env_builds_warehouse_path(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.aws_region == "us-east-1"
     assert settings.warehouse_path == "s3://lakehouse-dev-123456789012/warehouse/"
     assert settings.landing_path == "s3://lakehouse-dev-123456789012/landing/"
+    assert settings.landing_path_s3a == "s3a://lakehouse-dev-123456789012/landing/"
 
 
 def test_from_env_requires_bucket_name(monkeypatch: pytest.MonkeyPatch) -> None:

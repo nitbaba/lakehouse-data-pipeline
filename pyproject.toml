@@ -18,6 +18,14 @@ dev = [
     "pytest>=8.3",
     "pre-commit>=4.0",
     "dlt[duckdb]>=1.28",
+    # Version-matched to the spark-iceberg container's bundled Spark (3.5.5).
+    # Host-side only, for mypy/import-resolution — jobs always execute
+    # in-container via the image's own bundled PySpark, not this install.
+    # (boto3 is deliberately NOT added here: it's only used inside the
+    # container, where it's installed separately via docker/spark/Dockerfile;
+    # a host install conflicts with dlt's pinned aiobotocore/botocore range,
+    # so mypy gets an ignore_missing_imports override for it instead below.)
+    "pyspark==3.5.5",
 ]
 
 [tool.setuptools.packages.find]
@@ -30,10 +38,23 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+# These jobs run inside the spark-iceberg container on its bundled Python
+# 3.10 (older than this project's own 3.12), where `datetime.UTC` doesn't
+# exist — `timezone.utc` is used instead, which UP017 would otherwise "fix"
+# to the newer (here, unavailable) alias.
+"src/lakehouse/processing/*.py" = ["UP017"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
 files = ["src", "tests"]
+
+# boto3 is only installed inside the spark-iceberg container (see
+# pyproject.toml's dev deps comment above for why it's not on the host).
+[[tool.mypy.overrides]]
+module = "boto3.*"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
