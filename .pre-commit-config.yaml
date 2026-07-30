@@ -23,7 +23,8 @@ repos:
     hooks:
       - id: mypy
         files: ^(src|tests)/
-        additional_dependencies: ["dlt[filesystem]>=1.28"]
+        additional_dependencies:
+          ["dlt[filesystem]>=1.28", "pyspark==3.5.5", "great_expectations>=1.19", "pytest>=8.3"]
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.96.1

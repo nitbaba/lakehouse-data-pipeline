@@ -15,4 +15,4 @@ ADD https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_B
 # (it only reads ~/.aws/credentials, not ~/.aws/config where role_arn lives).
 # boto3 handles this profile correctly, so job code assumes the role itself
 # and hands Spark ready-made temporary credentials instead.
-RUN pip install --no-cache-dir boto3
+RUN pip install --no-cache-dir boto3 great_expectations
