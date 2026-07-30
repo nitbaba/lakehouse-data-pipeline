@@ -1,0 +1,52 @@
+name: Docker Build and Scan
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: airflow
+            context: ./docker/airflow
+          - name: spark
+            context: ./docker/spark
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.name }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          load: true
+          tags: lakehouse-${{ matrix.name }}:ci
+
+      # Report-only: exit-code 0 regardless of findings. This project
+      # doesn't control the upstream base images (apache/airflow,
+      # tabulario/spark-iceberg), so failing the build on their CVEs isn't
+      # actionable here -- the scan is for visibility via the Security tab,
+      # not a merge gate.
+      - name: Scan ${{ matrix.name }} image with Trivy
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: lakehouse-${{ matrix.name }}:ci
+          format: sarif
+          output: trivy-${{ matrix.name }}.sarif
+          exit-code: "0"
+
+      - name: Upload ${{ matrix.name }} SARIF to Code Scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-${{ matrix.name }}.sarif
+          category: trivy-${{ matrix.name }}
