@@ -47,6 +47,13 @@ services:
 
   iceberg-rest:
     image: tabulario/iceberg-rest:1.6.0
+    # The image's default user (uid 1000) can't read the root-owned
+    # ~/.aws mount below, which silently never mattered until a real
+    # table commit needed the REST catalog server's own S3 credentials
+    # (namespace-only operations don't touch S3). Run as root instead,
+    # matching spark-iceberg's default user, which already reads this
+    # same mount fine.
+    user: root
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,7 +74,8 @@ services:
       - lakehouse-net
 
   spark-iceberg:
-    image: tabulario/spark-iceberg:latest
+    build:
+      context: ./docker/spark
     depends_on:
       - iceberg-rest
     environment:
@@ -75,6 +83,8 @@ services:
       AWS_PROFILE: ${AWS_PROFILE}
       HOME: /root
       JUPYTER_TOKEN: ${JUPYTER_TOKEN}
+      LAKEHOUSE_BUCKET_NAME: ${LAKEHOUSE_BUCKET_NAME}
+      PYTHONPATH: /home/iceberg/src
     # The image's default `notebook` command hardcodes --NotebookApp.token=''
     # (no auth). Override it with a real token, keeping the same cluster
     # startup behavior from the image's entrypoint.sh.
@@ -87,6 +97,7 @@ services:
       - ${HOME}/.aws:/root/.aws:ro
       - ./notebooks:/home/iceberg/notebooks/lakehouse
       - ./docker/spark/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+      - ./src:/home/iceberg/src:ro
     ports:
       - "8888:8888"
       - "8082:8080"

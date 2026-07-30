@@ -52,6 +52,25 @@ test: ## Run pytest
 ingest: ## Run the dlt ingestion pipeline against S3 (needs a filled-in .env)
 	set -a && . ./.env && set +a && $(PY) -m lakehouse.ingestion.pipeline
 
+.PHONY: spark-bronze
+spark-bronze: ## Run the Bronze Spark job in the spark-iceberg container
+	docker compose exec -T spark-iceberg spark-submit /home/iceberg/src/lakehouse/processing/bronze.py
+
+.PHONY: spark-silver
+spark-silver: ## Run the Silver Spark job in the spark-iceberg container
+	docker compose exec -T spark-iceberg spark-submit /home/iceberg/src/lakehouse/processing/silver.py
+
+.PHONY: spark-gold
+spark-gold: ## Run the Gold Spark job in the spark-iceberg container
+	docker compose exec -T spark-iceberg spark-submit /home/iceberg/src/lakehouse/processing/gold.py
+
+.PHONY: spark-medallion
+spark-medallion: spark-bronze spark-silver spark-gold ## Run the full Bronze -> Silver -> Gold pipeline
+
+.PHONY: spark-maintenance
+spark-maintenance: ## Run Iceberg maintenance (compaction, snapshot expiration)
+	docker compose exec -T spark-iceberg spark-submit /home/iceberg/src/lakehouse/processing/maintenance.py
+
 .PHONY: tf-init
 tf-init: ## terraform init
 	terraform -chdir=terraform init
