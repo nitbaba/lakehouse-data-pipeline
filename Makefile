@@ -73,6 +73,14 @@ spark-medallion: spark-bronze spark-silver spark-gold ## Run the full Bronze -> 
 spark-maintenance: ## Run Iceberg maintenance (compaction, snapshot expiration)
 	docker compose exec -T spark-iceberg spark-submit /home/iceberg/src/lakehouse/processing/maintenance.py
 
+.PHONY: dbt-run
+dbt-run: ## Run dbt models (Silver + Gold) against Trino -- a second path off Bronze
+	docker compose exec -T airflow-scheduler /opt/dbt-venv/bin/dbt run --project-dir /opt/airflow/dbt --profiles-dir /opt/airflow/dbt
+
+.PHONY: dbt-test
+dbt-test: ## Run dbt tests
+	docker compose exec -T airflow-scheduler /opt/dbt-venv/bin/dbt test --project-dir /opt/airflow/dbt --profiles-dir /opt/airflow/dbt
+
 .PHONY: tf-init
 tf-init: ## terraform init
 	terraform -chdir=terraform init

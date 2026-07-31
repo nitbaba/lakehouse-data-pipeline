@@ -174,11 +174,17 @@ services:
       AWS_PROFILE: ${AWS_PROFILE}
       LAKEHOUSE_BUCKET_NAME: ${LAKEHOUSE_BUCKET_NAME}
       PYTHONPATH: /opt/airflow/src
+      # dbt's own build artifacts can't be written into ./dbt itself, which
+      # is mounted read-only below -- redirect them outside the bind mount
+      # so they never leak into the host git working tree.
+      DBT_TARGET_PATH: /tmp/dbt_target
+      DBT_LOG_PATH: /tmp/dbt_logs
     volumes:
       - ./dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
       - airflow_plugins:/opt/airflow/plugins
       - ./src:/opt/airflow/src:ro
+      - ./dbt:/opt/airflow/dbt:ro
       - ${HOME}/.aws:/root/.aws:ro
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:

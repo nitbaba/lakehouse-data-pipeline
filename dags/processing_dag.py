@@ -5,10 +5,13 @@ from datetime import timedelta
 import pendulum
 from airflow.datasets import Dataset
 from airflow.decorators import dag
+from airflow.operators.bash import BashOperator
 from operators.docker_exec_operator import DockerExecOperator
 
 LANDING_DATASET = Dataset("lakehouse://landing/open-meteo")
 SPARK_CONTAINER = "lakehouse-data-pipeline-spark-iceberg-1"
+DBT_BIN = "/opt/dbt-venv/bin/dbt"
+DBT_PROJECT_DIR = "/opt/airflow/dbt"
 
 default_args = {
     # Spark job failures are usually deterministic (bad data, schema
@@ -45,7 +48,20 @@ def processing_dag() -> None:
         container_name=SPARK_CONTAINER,
         command=["spark-submit", "/home/iceberg/src/lakehouse/processing/gold.py"],
     )
+    # Second, independent path off Bronze: dbt models (via Trino) produce
+    # their own dbt_silver/dbt_gold tables. Runs in-process in this
+    # container (not DockerExecOperator -- dbt only needs network access to
+    # Trino, which this container already has), as a sibling of
+    # silver >> gold, not blocking or blocked by the PySpark chain.
+    dbt_transform = BashOperator(
+        task_id="dbt_transform",
+        bash_command=(
+            f"{DBT_BIN} run --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR} && "
+            f"{DBT_BIN} test --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}"
+        ),
+    )
     bronze >> silver >> gold
+    bronze >> dbt_transform
 
 
 processing_dag()

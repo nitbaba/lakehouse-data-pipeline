@@ -163,3 +163,16 @@ Then there's a one-time manual setup step in Superset. There's no scripted equiv
 1. Log into Superset at http://localhost:8088 (`SUPERSET_ADMIN_USERNAME` / `SUPERSET_ADMIN_PASSWORD` from `.env`).
 2. Settings → Database Connections → **+ Database** → SQLAlchemy URI: `trino://superset@trino:8080/iceberg`.
 3. Add a dataset for `gold.monthly_location_climate_summary`, then build a chart and save it to a dashboard.
+
+## dbt (a second transformation path)
+
+The `dbt/` project (via [dbt-trino](https://github.com/starburstdata/dbt-trino)) reads the same Bronze table as the PySpark Silver/Gold jobs and produces its own `dbt_silver.dbt_silver_weather_daily` and `dbt_gold.dbt_gold_monthly_location_climate_summary` tables through Trino. This is additive, not a replacement: `src/lakehouse/processing/{silver,gold}.py`, their tests, and Great Expectations are untouched, and both paths read from the same Bronze data and land in the same Iceberg REST catalog. The SQL mirrors the PySpark business logic exactly (same dedup key, same aggregates), so the two engines' outputs match row for row.
+
+dbt runs from an isolated virtualenv baked into the Airflow image (`/opt/dbt-venv`), kept separate from Airflow's own dependencies since dbt-core pins versions of common libraries that would otherwise collide with Airflow's constraint-pinned install. `processing_dag`'s `dbt_transform` task runs it as a sibling of `silver >> gold`, not blocking or blocked by that chain, since both branches only depend on Bronze.
+
+```bash
+make dbt-run     # dbt run  -- builds dbt_silver / dbt_gold
+make dbt-test    # dbt test -- not_null / accepted_values / uniqueness checks
+```
+
+dbt's own tests stand in for Great Expectations on this path: `not_null` and `accepted_values` checks in `dbt/models/{silver,gold}/schema.yml`, plus a singular uniqueness test in `dbt/tests/`.
