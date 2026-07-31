@@ -6,6 +6,7 @@ volumes:
   postgres_data:
   airflow_logs:
   airflow_plugins:
+  superset_home:
 
 x-airflow-common: &airflow-common
   build:
@@ -33,7 +34,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_MULTIPLE_DATABASES: iceberg_catalog
+      POSTGRES_MULTIPLE_DATABASES: iceberg_catalog,superset
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d
@@ -104,6 +105,28 @@ services:
     networks:
       - lakehouse-net
 
+  trino:
+    image: trinodb/trino:483
+    # Same root-owned ~/.aws mount issue already hit and fixed for
+    # iceberg-rest: the image's default non-root user can't read it.
+    user: root
+    depends_on:
+      - iceberg-rest
+    environment:
+      AWS_REGION: ${AWS_REGION}
+      AWS_PROFILE: ${AWS_PROFILE}
+      HOME: /root
+    volumes:
+      - ${HOME}/.aws:/root/.aws:ro
+      - ./docker/trino/catalog:/etc/trino/catalog:ro
+    # Host 8080 is occupied by an unrelated process on this shared dev
+    # machine (not part of this project's stack) -- map to 8083 instead.
+    # Trino's own default port (8080) is unaffected inside the container.
+    ports:
+      - "8083:8080"
+    networks:
+      - lakehouse-net
+
   airflow-init:
     <<: *airflow-common
     command: >
@@ -160,4 +183,46 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       airflow-init:
+        condition: service_completed_successfully
+
+  superset-init:
+    build:
+      context: ./docker/superset
+    environment: &superset-common-env
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_DB: superset
+      DATABASE_USER: ${POSTGRES_USER}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+    command: >
+      bash -c "superset db upgrade &&
+      superset fab create-admin
+      --username ${SUPERSET_ADMIN_USERNAME}
+      --password ${SUPERSET_ADMIN_PASSWORD}
+      --firstname ${SUPERSET_ADMIN_FIRSTNAME}
+      --lastname ${SUPERSET_ADMIN_LASTNAME}
+      --email ${SUPERSET_ADMIN_EMAIL} &&
+      superset init"
+    volumes:
+      - superset_home:/app/superset_home
+    networks:
+      - lakehouse-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  superset:
+    build:
+      context: ./docker/superset
+    environment:
+      <<: *superset-common-env
+    volumes:
+      - superset_home:/app/superset_home
+    ports:
+      - "8088:8088"
+    networks:
+      - lakehouse-net
+    depends_on:
+      superset-init:
         condition: service_completed_successfully
