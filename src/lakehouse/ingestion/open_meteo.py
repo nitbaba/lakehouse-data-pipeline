@@ -24,6 +24,7 @@ LOCATIONS: tuple[Location, ...] = (
     Location("new_york", 40.7128, -74.0060),
     Location("london", 51.5074, -0.1278),
     Location("mumbai", 19.0760, 72.8777),
+    Location("philadelphia", 39.9526, -75.1652),
 )
 
 

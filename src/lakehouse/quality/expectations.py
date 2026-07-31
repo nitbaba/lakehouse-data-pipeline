@@ -10,7 +10,7 @@ from pyspark.sql import DataFrame  # noqa: E402
 
 import great_expectations as gx  # noqa: E402
 
-KNOWN_LOCATIONS = ("new_york", "london", "mumbai")
+KNOWN_LOCATIONS = ("new_york", "london", "mumbai", "philadelphia")
 MIN_PLAUSIBLE_TEMP_C = -90.0
 MAX_PLAUSIBLE_TEMP_C = 60.0
 
