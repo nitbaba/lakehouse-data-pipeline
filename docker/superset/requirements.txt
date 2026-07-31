@@ -1,0 +1,2 @@
+trino[sqlalchemy]>=0.338,<1.0
+psycopg2-binary>=2.9,<3.0

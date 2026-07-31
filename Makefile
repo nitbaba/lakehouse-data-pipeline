@@ -20,9 +20,11 @@ $(VENV)/bin/activate:
 	@fernet=$$(python3 -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"); \
 	secret=$$(python3 -c "import secrets; print(secrets.token_hex(32))"); \
 	jupyter_token=$$(python3 -c "import secrets; print(secrets.token_hex(24))"); \
+	superset_secret=$$(python3 -c "import secrets; print(secrets.token_hex(32))"); \
 	sed -i "s|^AIRFLOW_FERNET_KEY=.*|AIRFLOW_FERNET_KEY=$$fernet|" .env; \
 	sed -i "s|^AIRFLOW_WEBSERVER_SECRET_KEY=.*|AIRFLOW_WEBSERVER_SECRET_KEY=$$secret|" .env; \
-	sed -i "s|^JUPYTER_TOKEN=.*|JUPYTER_TOKEN=$$jupyter_token|" .env
+	sed -i "s|^JUPYTER_TOKEN=.*|JUPYTER_TOKEN=$$jupyter_token|" .env; \
+	sed -i "s|^SUPERSET_SECRET_KEY=.*|SUPERSET_SECRET_KEY=$$superset_secret|" .env
 	@echo "Created .env — fill in LAKEHOUSE_BUCKET_NAME after 'make tf-apply'."
 
 terraform/terraform.tfvars:

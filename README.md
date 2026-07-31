@@ -98,3 +98,25 @@ make up                                    # brings up the whole stack including
 airflow dags unpause ingestion_dag processing_dag
 airflow dags trigger ingestion_dag         # manual run; @daily handles the rest
 ```
+
+## Phase 7: Analytics & Visualization (Trino + Superset)
+
+[Trino](https://trino.io/) queries the Gold Iceberg table directly through the same REST catalog Spark uses (`docker/trino/catalog/iceberg.properties`), no separate sync/export step. [Apache Superset](https://superset.apache.org/) connects to Trino as its SQL source; its own metadata store is a second database (`superset`) on the same shared `postgres` container Airflow already uses (`docker/postgres/init/`'s multi-database init script), not a new Postgres instance.
+
+`superset-init` runs Superset's one-time `db upgrade` / admin-user / `init` bootstrap (mirroring `airflow-init`) before the `superset` webserver starts.
+
+```bash
+make up     # also brings up trino, superset-init, and superset
+```
+
+Verify Trino can read the Gold table directly, without going through Superset:
+
+```bash
+docker compose exec trino trino --catalog iceberg --execute "SELECT * FROM gold.monthly_location_climate_summary LIMIT 5"
+```
+
+Then, one-time manual setup in Superset (no scripted equivalent — this is normally a UI-driven step for a real analyst too):
+
+1. Log into Superset at http://localhost:8088 (`SUPERSET_ADMIN_USERNAME` / `SUPERSET_ADMIN_PASSWORD` from `.env`).
+2. Settings → Database Connections → **+ Database** → SQLAlchemy URI: `trino://superset@trino:8080/iceberg`.
+3. Add a dataset for `gold.monthly_location_climate_summary`, then build a chart and save it to a dashboard.
