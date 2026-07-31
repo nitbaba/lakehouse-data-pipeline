@@ -45,41 +45,47 @@ This project strictly adheres to enterprise engineering standards to serve as a 
 ## 5. Master Implementation Roadmap
 
 ### Phase 1: WSL2 Environment Setup & Local Infrastructure
-* [ ] Verify Ubuntu 24.04.4 LTS setup: systemd activation, Python 3.12+ virtual environments, Docker integration, and `wsl.conf` settings.
-* [ ] Initialize Git repo, `.gitignore`, pre-commit hooks (`ruff`, `mypy`), and modular directory structure in `/home/`.
-* [ ] Configure Terraform scripts for S3 buckets / MinIO and IAM policies.
-* [ ] Set up local multi-container development environment via `docker-compose` (Spark, Iceberg REST catalog, Airflow, Postgres metadata store).
+* [x] Verify Ubuntu 24.04.4 LTS setup: systemd activation, Python 3.12+ virtual environments, Docker integration, and `wsl.conf` settings.
+* [x] Initialize Git repo, `.gitignore`, pre-commit hooks (`ruff`, `mypy`), and modular directory structure in `/home/`.
+* [x] Configure Terraform scripts for S3 buckets / MinIO and IAM policies.
+* [x] Set up local multi-container development environment via `docker-compose` (Spark, Iceberg REST catalog, Airflow, Postgres metadata store).
 
 ### Phase 2: Ingestion Layer (`dlt`)
-* [ ] Learn `dlt` core primitives: sources, resources, destinations, and pipeline state.
-* [ ] Build a custom `dlt` pipeline ingesting raw API data into object storage landing zones.
-* [ ] Add automated error handling and schema drift handling in `dlt`.
+* [x] Learn `dlt` core primitives: sources, resources, destinations, and pipeline state.
+* [x] Build a custom `dlt` pipeline ingesting raw API data into object storage landing zones.
+* [x] Add automated error handling and schema drift handling in `dlt`.
 
 ### Phase 3: Storage & Processing Layer (Apache Iceberg + PySpark)
-* [ ] Learn Apache Iceberg internals: Metadata JSON, Manifest Lists, and Manifest Files.
-* [ ] Configure PySpark with Iceberg REST catalog extensions.
-* [ ] Build PySpark Lakehouse transformations using the Medallion Architecture (Bronze -> Silver -> Gold).
-* [ ] Implement Iceberg Maintenance operations (Compaction, Snapshot Expiration).
+* [x] Learn Apache Iceberg internals: Metadata JSON, Manifest Lists, and Manifest Files.
+* [x] Configure PySpark with Iceberg REST catalog extensions.
+* [x] Build PySpark Lakehouse transformations using the Medallion Architecture (Bronze -> Silver -> Gold).
+* [x] Implement Iceberg Maintenance operations (Compaction, Snapshot Expiration).
 
 ### Phase 4: Data Quality & Testing Framework
-* [ ] Integrate **Great Expectations** / **dlt** validation rules at landing and Silver layers.
-* [ ] Write `pytest` test suites for PySpark transformations using local PySpark fixtures.
+* [x] Integrate **Great Expectations** / **dlt** validation rules at landing and Silver layers.
+* [x] Write `pytest` test suites for PySpark transformations using local PySpark fixtures.
 
 ### Phase 5: Production Orchestration (Apache Airflow)
-* [ ] Design modular Airflow DAGs with custom DockerOperators / TaskFlow API.
-* [ ] Implement task retries, SLA monitoring, and dataset/asset triggers.
-* [ ] Enforce secrets management and environment variables via Airflow Connections.
+* [x] Design modular Airflow DAGs with custom DockerOperators / TaskFlow API.
+* [x] Implement task retries, SLA monitoring, and dataset/asset triggers.
+* [x] Enforce secrets management and environment variables via Airflow Connections.
 
 ### Phase 6: Enterprise CI/CD Pipeline (GitHub Actions)
-* [ ] Write GitHub Actions workflows for:
+* [x] Write GitHub Actions workflows for:
   * `lint-and-test.yml` (Ruff, Mypy, Pytest).
   * `terraform-ci.yml` (Terraform fmt, validate, plan).
   * `docker-build.yml` (Container build and scan).
 
 ### Phase 7: Analytics & Visualization Layer
-* [ ] Connect Metabase or Apache Superset to the Gold Iceberg tables.
-* [ ] Build production-ready executive dashboard and metrics reporting layer.
+* [x] Connect Metabase or Apache Superset to the Gold Iceberg tables.
+* [x] Build production-ready executive dashboard and metrics reporting layer.
 
 ### Phase 8: Documentation & Portfolio Polish
-* [ ] Draft architectural documentation with lineage flow.
-* [ ] Write a clean, employer-ready `README.md` with step-by-step reproduction instructions.
+* [x] Draft architectural documentation with lineage flow.
+* [x] Write a clean, employer-ready `README.md` with step-by-step reproduction instructions.
+
+### Phase 9: Beyond the Original Roadmap
+Work added after the initial 8-phase roadmap was completed, in response to follow-up requests rather than the original plan:
+* [x] Added Philadelphia as a fourth ingested location (`src/lakehouse/ingestion/open_meteo.py`, `src/lakehouse/quality/expectations.py`) — no changes needed anywhere downstream (Bronze/Silver/Gold, Trino, Superset), since the pipeline was already location-agnostic past ingestion.
+* [x] Added [dbt](https://www.getdbt.com/) (via [dbt-trino](https://github.com/starburstdata/dbt-trino)) as a second, parallel Silver/Gold transformation path off the same Bronze table (`dbt/`), alongside the original PySpark path — not a replacement. Cross-checked row-for-row against the PySpark output for parity. Runs from an isolated venv in the Airflow image and as a sibling task (`dbt_transform`) in `processing_dag`.
+* [x] Built a second Superset dashboard ("dbt Transformation Layer") reading from the dbt-produced tables, alongside the original dashboard built on the PySpark tables.
