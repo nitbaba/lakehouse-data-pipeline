@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: dbt_gold_monthly_location_climate_summary
+    description: >
+      Monthly per-location climate aggregates (dbt/Trino path). Parallel to
+      rest.gold.monthly_location_climate_summary (the PySpark path).
+    columns:
+      - name: year_month
+        tests:
+          - not_null
+      - name: location
+        tests:
+          - not_null
+      - name: days_observed
+        tests:
+          - not_null

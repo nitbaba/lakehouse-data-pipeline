@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: dbt_silver_weather_daily
+    description: >
+      Deduplicated, typed daily weather (dbt/Trino path). Parallel to
+      rest.silver.weather_daily (the PySpark path) -- same source, same
+      dedup logic, different engine.
+    columns:
+      - name: date
+        tests:
+          - not_null
+      - name: location
+        tests:
+          - not_null
+          # Keep in sync with KNOWN_LOCATIONS in
+          # src/lakehouse/quality/expectations.py and LOCATIONS in
+          # src/lakehouse/ingestion/open_meteo.py.
+          - accepted_values:
+              arguments:
+                values: ["new_york", "london", "mumbai", "philadelphia"]
+      - name: temperature_2m_max
+        tests:
+          - not_null
+      - name: temperature_2m_min
+        tests:
+          - not_null

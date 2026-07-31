@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: iceberg_bronze
+    schema: bronze
+    tables:
+      - name: weather_daily_raw
+        description: >
+          Raw landing-zone JSON read into Iceberg by the PySpark Bronze job
+          (src/lakehouse/processing/bronze.py). Same physical table the
+          PySpark Silver job reads; this is a second, independent read of it.
+        columns:
+          - name: date
+            description: Raw date string (YYYY-MM-DD) as landed by dlt.
+          - name: location
+            description: Location name, e.g. "new_york".
+          - name: _dlt_load_id
+            description: dlt load id; latest value per (date, location) wins on dedup.

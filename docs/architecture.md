@@ -11,10 +11,12 @@ flowchart TD
         DLT --> LANDING["S3 landing zone<br/>s3://bucket/landing/open_meteo/"]
     end
 
-    subgraph Processing["Storage and Processing (Iceberg + PySpark)"]
-        LANDING --> BRONZE["Bronze<br/>rest.bronze.weather_daily_raw"]
-        BRONZE --> SILVER["Silver<br/>rest.silver.weather_daily<br/>MERGE INTO on date, location"]
-        SILVER --> GOLD["Gold<br/>rest.gold.monthly_location_climate_summary"]
+    subgraph Processing["Storage and Processing (two engines, one catalog)"]
+        LANDING --> BRONZE["Bronze<br/>rest.bronze.weather_daily_raw<br/>(PySpark)"]
+        BRONZE --> SILVER["Silver (PySpark)<br/>rest.silver.weather_daily<br/>MERGE INTO on date, location"]
+        SILVER --> GOLD["Gold (PySpark)<br/>rest.gold.monthly_location_climate_summary"]
+        BRONZE --> DBT_SILVER["Silver (dbt via Trino)<br/>iceberg.dbt_silver.weather_daily<br/>same dedup logic, SQL"]
+        DBT_SILVER --> DBT_GOLD["Gold (dbt via Trino)<br/>iceberg.dbt_gold.monthly_location_climate_summary"]
     end
 
     subgraph Quality["Data Quality (Great Expectations)"]
@@ -30,11 +32,14 @@ flowchart TD
     BRONZE -.-> REST
     SILVER -.-> REST
     GOLD -.-> REST
+    DBT_SILVER -.-> REST
+    DBT_GOLD -.-> REST
     REST -.-> S3W
 
     subgraph Orchestration["Orchestration (Airflow)"]
         ING_DAG["ingestion_dag<br/>at daily"] -->|"marks Dataset<br/>lakehouse://landing/open-meteo"| PROC_DAG["processing_dag<br/>dataset-triggered"]
         PROC_DAG -->|"DockerExecOperator:<br/>bronze then silver then gold"| BRONZE
+        PROC_DAG -.->|"BashOperator:<br/>dbt run then dbt test"| DBT_SILVER
     end
 
     ING_DAG -.->|"runs"| DLT
@@ -57,11 +62,13 @@ flowchart TD
 
 **Storage and processing.** `src/lakehouse/processing/{bronze,silver,gold}.py` run as PySpark jobs against the Iceberg REST catalog (catalog alias `rest` in Spark, configured in `docker/spark/spark-defaults.conf`). Bronze (`rest.bronze.weather_daily_raw`) reads the raw landing JSON through Spark's Hadoop S3A connector and overwrites the table in full on every run, which stays correctly idempotent since landing is append-only. Silver (`rest.silver.weather_daily`) dedupes and types the data, merging into the table on `(date, location)`. Gold (`rest.gold.monthly_location_climate_summary`) recomputes the monthly per-location climate aggregates from scratch each time. `src/lakehouse/processing/maintenance.py` handles Iceberg compaction and snapshot expiration across all three tables.
 
-**Catalog.** All three tables, and every engine that reads them (Spark, Trino), go through the same Iceberg REST catalog. It's backed by a Postgres-hosted JDBC catalog store, with the actual table data sitting in the S3 warehouse at `s3://<bucket>/warehouse/`. There's exactly one source of truth for table metadata, and nothing gets synced or copied between engines.
+A second, independent path runs off the same Bronze table: the `dbt/` project (via [dbt-trino](https://github.com/starburstdata/dbt-trino)) builds `iceberg.dbt_silver.weather_daily` and `iceberg.dbt_gold.monthly_location_climate_summary`, translating the same dedup and aggregation logic into plain SQL instead of PySpark. Both paths were cross-checked directly against each other through Trino and produce matching row counts and aggregates. Neither path depends on the other; they're two independent reads of the same Bronze data, not a pipeline in series.
+
+**Catalog.** Every table above, and every engine that reads or writes them (Spark, Trino/dbt), go through the same Iceberg REST catalog. It's backed by a Postgres-hosted JDBC catalog store, with the actual table data sitting in the S3 warehouse at `s3://<bucket>/warehouse/`. There's exactly one source of truth for table metadata, and nothing gets synced or copied between engines, which is what makes running the same transformation twice, in two different engines, a fair comparison rather than a data-copying exercise.
 
 **Data quality.** `src/lakehouse/quality/expectations.py` validates in-line with the real pipeline rather than as a separate side job. `validate_landing()` runs structural and range checks on the raw Bronze read, things like known locations and plausible temperature and precipitation ranges. `validate_silver()` runs on the deduplicated Silver data and adds a `(date, location)` uniqueness check plus a `temperature_max >= temperature_min` cross-column check. Both raise on failure, matching this pipeline's fail-loud pattern everywhere else.
 
-**Orchestration.** Two Airflow DAGs, `dags/ingestion_dag.py` and `dags/processing_dag.py`, are linked by an Airflow Dataset rather than a fixed time offset. `ingestion_dag` (`@daily`) runs the dlt pipeline in-process and marks the `lakehouse://landing/open-meteo` Dataset updated once it succeeds. That triggers `processing_dag`, which runs `bronze`, `silver`, and `gold` as three sequential tasks through a custom `DockerExecOperator` (`src/lakehouse/orchestration/docker_exec.py` + `dags/operators/docker_exec_operator.py`). It execs the same `spark-submit` commands that `make spark-bronze` and friends already run manually, inside the already-running `spark-iceberg` container.
+**Orchestration.** Two Airflow DAGs, `dags/ingestion_dag.py` and `dags/processing_dag.py`, are linked by an Airflow Dataset rather than a fixed time offset. `ingestion_dag` (`@daily`) runs the dlt pipeline in-process and marks the `lakehouse://landing/open-meteo` Dataset updated once it succeeds. That triggers `processing_dag`, which runs `bronze`, `silver`, and `gold` as three sequential tasks through a custom `DockerExecOperator` (`src/lakehouse/orchestration/docker_exec.py` + `dags/operators/docker_exec_operator.py`). It execs the same `spark-submit` commands that `make spark-bronze` and friends already run manually, inside the already-running `spark-iceberg` container. A fourth task, `dbt_transform`, runs as a sibling of that chain straight off `bronze` (a plain `BashOperator`, since dbt only needs network access to Trino, which the scheduler container already has), and it neither blocks nor waits on the PySpark chain.
 
 **Analytics and visualization.** Trino queries the Gold table directly through the REST catalog (`docker/trino/catalog/iceberg.properties`), with no export or sync step in between. Apache Superset connects to Trino as its SQL source and renders charts and dashboards from `iceberg.gold.monthly_location_climate_summary`. Superset's own metadata store is just a second database on the same shared Postgres container Airflow already uses.
 
