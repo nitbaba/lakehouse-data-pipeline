@@ -99,6 +99,16 @@ airflow dags unpause ingestion_dag processing_dag
 airflow dags trigger ingestion_dag         # manual run; @daily handles the rest
 ```
 
+## Phase 6: CI/CD (GitHub Actions)
+
+Three workflows, all in `.github/workflows/`:
+
+- **`lint-and-test.yml`** — `ruff check`, `ruff format --check`, `mypy`, `pytest`, each as its own step (not one `make lint`, so failures are individually attributable in the GitHub UI). Runs on every push to `master` and every PR; no AWS credentials involved.
+- **`terraform-ci.yml`** — two jobs. `fmt-validate` (`terraform fmt -check`, `init`, `validate`) needs no AWS credentials at all (no backend, local state only) and runs on every push/PR/dispatch. `plan` runs `terraform plan` against real AWS, authenticated via a narrowly-scoped, read-only IAM role assumed through GitHub's OIDC federation (`terraform/modules/github_actions_role/`) — no static keys stored anywhere. It only runs `on: push` to `master` or `workflow_dispatch`, **never `pull_request`**, so the OIDC-assumable role is never reachable from an untrusted fork PR.
+- **`docker-build.yml`** — matrix build of the `airflow` and `spark` images, each scanned by [Trivy](https://trivy.dev/) in report-only mode (`exit-code: "0"`, since this project doesn't control CVEs in the upstream base images) with SARIF results uploaded to the repo's Security → Code Scanning tab.
+
+The `plan` job assuming a real AWS role means the corresponding Terraform (`module.github_actions_ci` in `terraform/main.tf`) has to exist and be applied, and its ARN published as the `LAKEHOUSE_TF_CI_ROLE_ARN` GitHub Actions repository variable, before the workflow can succeed — a one-time setup step, not something CI does for itself.
+
 ## Phase 7: Analytics & Visualization (Trino + Superset)
 
 [Trino](https://trino.io/) queries the Gold Iceberg table directly through the same REST catalog Spark uses (`docker/trino/catalog/iceberg.properties`), no separate sync/export step. [Apache Superset](https://superset.apache.org/) connects to Trino as its SQL source; its own metadata store is a second database (`superset`) on the same shared `postgres` container Airflow already uses (`docker/postgres/init/`'s multi-database init script), not a new Postgres instance.
