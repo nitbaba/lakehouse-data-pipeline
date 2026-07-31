@@ -1,6 +1,39 @@
 # Lakehouse Data Pipeline
 
+[![Lint and Test](https://github.com/nitbaba/lakehouse-data-pipeline/actions/workflows/lint-and-test.yml/badge.svg)](https://github.com/nitbaba/lakehouse-data-pipeline/actions/workflows/lint-and-test.yml)
+[![Terraform CI](https://github.com/nitbaba/lakehouse-data-pipeline/actions/workflows/terraform-ci.yml/badge.svg)](https://github.com/nitbaba/lakehouse-data-pipeline/actions/workflows/terraform-ci.yml)
+[![Docker Build and Scan](https://github.com/nitbaba/lakehouse-data-pipeline/actions/workflows/docker-build.yml/badge.svg)](https://github.com/nitbaba/lakehouse-data-pipeline/actions/workflows/docker-build.yml)
+
 Open-source, code-first data lakehouse: dlt, Apache Iceberg, AWS S3, PySpark, Apache Airflow, and Great Expectations, governed with Terraform, Docker, and GitHub Actions CI/CD. See [plan.md](plan.md) for the full roadmap.
+
+## Architecture
+
+Ingestion (dlt) lands raw weather data in S3; PySpark builds a Bronze → Silver → Gold medallion on Iceberg, validated by Great Expectations and orchestrated by Airflow; Trino and Superset serve the Gold layer as dashboards. Terraform, Docker Compose, and GitHub Actions provision, run, and gate all of it. Full lineage diagram and layer-by-layer walkthrough: [docs/architecture.md](docs/architecture.md).
+
+| Layer | Technology |
+| :--- | :--- |
+| Cloud / IaC | Terraform, AWS S3, IAM |
+| Ingestion | dlt |
+| Storage / Table Format | Apache Iceberg (REST catalog) |
+| Processing | PySpark |
+| Orchestration | Apache Airflow |
+| Data Quality | Great Expectations |
+| Query Engine | Trino |
+| Visualization | Apache Superset |
+| CI/CD | GitHub Actions |
+
+## Repository Layout
+
+```
+src/lakehouse/       # ingestion, processing (bronze/silver/gold), quality, orchestration code
+dags/                # Airflow DAGs (ingestion_dag, processing_dag) + custom operators
+docker/              # per-service Dockerfiles/config: airflow, spark, postgres, trino, superset
+terraform/           # S3 bucket, pipeline IAM role, GitHub Actions OIDC role
+great_expectations/  # data quality suites
+tests/               # pytest suites (local PySpark fixtures, no Docker/AWS needed)
+docs/                # architecture documentation
+.github/workflows/   # lint-and-test, terraform-ci, docker-build CI pipelines
+```
 
 ## Phase 1: Local Environment
 
